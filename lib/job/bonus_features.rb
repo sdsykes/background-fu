@@ -16,8 +16,10 @@ module Job::BonusFeatures
       invoke_worker_without_threads; nil
     end
     
+    result = self.result
     self.reload
     self.state = res ? "stopped" : "finished"
+    self.result = res ? nil : result
   end
 
   def ensure_worker_with_threads
