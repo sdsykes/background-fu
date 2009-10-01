@@ -119,16 +119,15 @@ class Job < ActiveRecord::Base
   end
   
   def self.update_scheduled_jobs(jobs)
-    return unless jobs
-    jobs.each do |sjob_class, sjobs|
-      sjobs.each do |sjob_method, params|
+    seen_ids = []
+    jobs && jobs.each do |sjob_class, sjobs|
+      sjobs && sjobs.each do |sjob_method, params|
         run_method = params.split.last
         run_method = "normal" unless run_methods.include? run_method
         crontab = params.split[0..5].join(" ")
         js = find(:first, :conditions=>["worker_class=? AND worker_method=? AND crontab IS NOT NULL", sjob_class.camelize, sjob_method])
         if js
-          js.crontab = crontab
-          js.run_method = run_method
+          js.crontab, js.run_method = crontab, run_method
           js.schedule
           js.save
         else
@@ -138,10 +137,16 @@ class Job < ActiveRecord::Base
             :crontab=>crontab,
             :run_method=>run_method
           )
-          Rails.logger.info js.errors.inspect
         end
+        seen_ids << js.id
       end
     end
+    remove_jobs_not_in_list(seen_ids)
+  end
+  
+  def self.remove_jobs_not_in_list(id_list)
+    jobs = find(:all, :conditions=>"crontab IS NOT NULL")
+    jobs.each {|j| j.destroy unless id_list.include?(j.id)}
   end
   
   def self.generate_state_helpers
