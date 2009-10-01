@@ -76,7 +76,7 @@ module Job::Cron
               else # no next minute, go to next hour
                 if hour = h[:hours].detect{|i| i > time.hour}
                 else # no next hour, go to future day
-                  time.advance(:days=>1) until date_match?(time, h)
+                  time = time.advance(:days=>1) until date_match?(time, h)
                 end
               end
             end
@@ -86,14 +86,14 @@ module Job::Cron
             else # no next minute, go to next hour
               if hour = h[:hours].detect{|i| i > time.hour}
               else # no next hour, go to future day
-                time.advance(:days=>1) until date_match?(time, h)
+                time = time.advance(:days=>1) until date_match?(time, h)
               end
             end
           end
         else # not this hour, find next
           if hour = h[:hours].detect{|i| i > time.hour}
           else # no next hour, go to future day
-            time.advance(:days=>1) until date_match?(time, h)
+            time = time.advance(:days=>1) until date_match?(time, h)
           end
         end
       else
