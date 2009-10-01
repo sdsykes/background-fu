@@ -2,6 +2,7 @@ require 'background_fu'
 require 'background_fu/worker_monitoring'
 require 'job'
 require 'job/bonus_features'
+require 'job/cron'
 
 ActiveSupport::Dependencies.load_paths << "#{RAILS_ROOT}/lib/workers"
 

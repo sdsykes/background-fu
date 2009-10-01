@@ -4,6 +4,10 @@ class CreateJobs < ActiveRecord::Migration
       t.string  :worker_class
       t.string  :worker_method
       
+      t.string :crontab
+      
+      t.string :run_method
+
       t.text    :args
       t.text    :result
 
