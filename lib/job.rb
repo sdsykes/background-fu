@@ -24,6 +24,10 @@ class Job < ActiveRecord::Base
   rescue ArgumentError, RangeError => e
     errors.add :crontab, e.to_s
   end
+
+  def inspect
+    "Job(id: #{id}, worker: #{worker_class}, method: #{worker_method})"
+  end
   
   def self.enqueue!(worker_class, worker_method, *args)
     if run_methods.include?(args[0].to_s)
@@ -39,26 +43,34 @@ class Job < ActiveRecord::Base
       :args => args
     )
 
-    logger.info("BackgroundFu: Job enqueued. Job(id: #{job.id}, worker: #{worker_class}, method: #{worker_method}, argc: #{args.size}).")
+    BACKGROUND_LOGGER.info("BackgroundFu: Job enqueued. #{job.inspect}, argc: #{args.size}).")
     
     job
   end
 
   # Invoked by a background daemon.
   def get_done!
+    last_run_time = started_at
     initialize_worker
     case run_method
     when "normal"
-      instantiate_and_invoke
+      instantiate_and_invoke(last_run_time)
     when "thread"
-      Thread.new {instantiate_and_invoke}
+      Thread.new {instantiate_and_invoke(last_run_time)}
     when "process"
-      logger.info "RAILS_ENV=#{Rails.env} #{RAILS_ROOT + "/script/runner"} 'Job.find_by_id(#{id}).instantiate_and_invoke'"
+      `RAILS_ENV=#{Rails.env} #{RAILS_ROOT + "/script/runner"} 'Job.find_by_id(#{id}).run("#{last_run_time}")'`
     end
   end
 
-  def instantiate_and_invoke
+  def run(last_run_time_str)
+    last_run_time = Time.parse(last_run_time_str)
+    instantiate_and_invoke(last_run_time)
+  end
+
+  def instantiate_and_invoke(last_run_time)
     @worker = worker_class.constantize.new
+    @worker.instance_variable_set(:@last_run_time, last_run_time)
+    @worker.instance_variable_set(:@logger, BACKGROUND_LOGGER)
     invoke_worker
   rescue Exception => e
     rescue_worker(e)
@@ -75,25 +87,29 @@ class Job < ActiveRecord::Base
         :started_at => nil, 
         :state      => "pending"
       )
-      logger.info("BackgroundFu: Job restarted. Job(id: #{id}).")
+      BACKGROUND_LOGGER.info("BackgroundFu: Job restarted. #{job.inspect}.")
     end
   end
   
   def initialize_worker
     update_attributes!(:started_at => Time.now, :state => "running")
-    logger.info("BackgroundFu: Job initialized. Job(id: #{id}).")
+    BACKGROUND_LOGGER.info("BackgroundFu: Job initialized. #{job.inspect}.")
   end
   
   def invoke_worker
-    self.result = @worker.send(worker_method, *args)
+    if !args || args.size == 0
+      self.result = @worker.send(worker_method)
+    else
+      self.result = @worker.send(worker_method, *args)
+    end
     self.state  = "finished"
-    logger.info("BackgroundFu: Job finished. Job(id: #{id}).")
+    BACKGROUND_LOGGER.info("BackgroundFu: Job finished. #{job.inspect}.")
   end
   
   def rescue_worker(exception)
     self.result = [exception.message, exception.backtrace.join("\n")].join("\n\n")
     self.state  = "failed"
-    logger.info("BackgroundFu: Job failed. Job(id: #{id}).")
+    BACKGROUND_LOGGER.info("BackgroundFu: Job failed. #{job.inspect}.")
   end
   
   def ensure_worker
@@ -103,7 +119,7 @@ class Job < ActiveRecord::Base
   rescue StaleObjectError
     # Ignore this exception as its only purpose is
     # not allowing multiple daemons execute the same job.
-    logger.info("BackgroundFu: Race condition handled (It's OK). Job(id: #{id}).")
+    BACKGROUND_LOGGER.info("BackgroundFu: Race condition handled (It's OK). #{job.inspect}.")
   end
 
   def schedule
@@ -114,7 +130,7 @@ class Job < ActiveRecord::Base
 
   # Delete finished jobs that are more than a week old.
   def self.cleanup_finished_jobs
-    logger.info "BackgroundFu: Cleaning up finished jobs."
+    BACKGROUND_LOGGER.info "BackgroundFu: Cleaning up finished jobs."
     Job.destroy_all(["state='finished' and updated_at < ?", 1.week.ago])
   end
   
