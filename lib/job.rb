@@ -1,8 +1,9 @@
 # Example:
 # 
 # job = Job.enqueue!(MyWorker, :my_method, "my_arg_1", "my_arg_2")
-class Job < ActiveRecord::Base
 
+class Job < ActiveRecord::Base
+  BACKGROUND_LOGGER = BackgroundFu::BACKGROUND_LOGGER
   cattr_accessor :states, :run_methods
   self.states = %w(pending running finished failed)
   self.run_methods = %w(normal thread process)
@@ -12,9 +13,9 @@ class Job < ActiveRecord::Base
 
   before_create :setup_state, :setup_priority, :setup_start_at
   validates_presence_of :worker_class, :worker_method
-  
+
   attr_readonly :worker_class, :worker_method, :args
-  
+
   def validate
     validate_crontab unless crontab.blank?
   end
@@ -28,7 +29,7 @@ class Job < ActiveRecord::Base
   def inspect
     "Job(id: #{id}, worker: #{worker_class}, method: #{worker_method})"
   end
-  
+
   def self.enqueue!(worker_class, worker_method, *args)
     if run_methods.include?(args[0].to_s)
       run_method = args[0].to_s
@@ -44,7 +45,7 @@ class Job < ActiveRecord::Base
     )
 
     BACKGROUND_LOGGER.info("BackgroundFu: Job enqueued. #{job.inspect}, argc: #{args.size}).")
-    
+  
     job
   end
 
@@ -90,14 +91,14 @@ class Job < ActiveRecord::Base
       BACKGROUND_LOGGER.info("BackgroundFu: Job restarted. #{inspect}.")
     end
   end
-  
+
   def initialize_worker
     update_attributes!(:started_at => Time.now, :state => "running")
     BACKGROUND_LOGGER.info("BackgroundFu: Job initialized. #{inspect}.")
   end
-  
+
   def invoke_worker
-    if !args || args.size == 0
+    if !args || args.size == 0
       self.result = @worker.send(worker_method)
     else
       self.result = @worker.send(worker_method, *args)
@@ -105,13 +106,13 @@ class Job < ActiveRecord::Base
     self.state  = "finished"
     BACKGROUND_LOGGER.info("BackgroundFu: Job finished. #{inspect}.")
   end
-  
+
   def rescue_worker(exception)
     self.result = [exception.message, exception.backtrace.join("\n")].join("\n\n")
     self.state  = "failed"
     BACKGROUND_LOGGER.info("BackgroundFu: Job failed. #{inspect}.")
   end
-  
+
   def ensure_worker
     self.progress = @worker.instance_variable_get("@progress")
     schedule unless crontab.blank? || state == "failed"
@@ -133,7 +134,7 @@ class Job < ActiveRecord::Base
     BACKGROUND_LOGGER.info "BackgroundFu: Cleaning up finished jobs."
     Job.destroy_all(["state='finished' and updated_at < ?", 1.week.ago])
   end
-  
+
   def self.update_scheduled_jobs(jobs)
     seen_ids = []
     jobs && jobs.each do |sjob_class, sjobs|
@@ -159,12 +160,12 @@ class Job < ActiveRecord::Base
     end
     remove_jobs_not_in_list(seen_ids)
   end
-  
+
   def self.remove_jobs_not_in_list(id_list)
     jobs = find(:all, :conditions=>"crontab IS NOT NULL")
     jobs.each {|j| j.destroy unless id_list.include?(j.id)}
   end
-  
+
   def self.generate_state_helpers
     states.each do |state_name|
       define_method("#{state_name}?") do
@@ -184,18 +185,18 @@ class Job < ActiveRecord::Base
 
     self.state = "pending" 
   end
-  
+
   # Default priority is 0. Jobs will be executed in descending priority order (negative priorities allowed).
   def setup_priority
     return unless priority.blank?
-    
+  
     self.priority = 0
   end
-  
+
   # Job will be executed after this timestamp.
   def setup_start_at
     return unless start_at.blank?
-    
+  
     if crontab.blank?
       self.start_at = Time.now
     else
