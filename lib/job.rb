@@ -87,13 +87,13 @@ class Job < ActiveRecord::Base
         :started_at => nil, 
         :state      => "pending"
       )
-      BACKGROUND_LOGGER.info("BackgroundFu: Job restarted. #{job.inspect}.")
+      BACKGROUND_LOGGER.info("BackgroundFu: Job restarted. #{inspect}.")
     end
   end
   
   def initialize_worker
     update_attributes!(:started_at => Time.now, :state => "running")
-    BACKGROUND_LOGGER.info("BackgroundFu: Job initialized. #{job.inspect}.")
+    BACKGROUND_LOGGER.info("BackgroundFu: Job initialized. #{inspect}.")
   end
   
   def invoke_worker
@@ -103,13 +103,13 @@ class Job < ActiveRecord::Base
       self.result = @worker.send(worker_method, *args)
     end
     self.state  = "finished"
-    BACKGROUND_LOGGER.info("BackgroundFu: Job finished. #{job.inspect}.")
+    BACKGROUND_LOGGER.info("BackgroundFu: Job finished. #{inspect}.")
   end
   
   def rescue_worker(exception)
     self.result = [exception.message, exception.backtrace.join("\n")].join("\n\n")
     self.state  = "failed"
-    BACKGROUND_LOGGER.info("BackgroundFu: Job failed. #{job.inspect}.")
+    BACKGROUND_LOGGER.info("BackgroundFu: Job failed. #{inspect}.")
   end
   
   def ensure_worker
@@ -119,7 +119,7 @@ class Job < ActiveRecord::Base
   rescue StaleObjectError
     # Ignore this exception as its only purpose is
     # not allowing multiple daemons execute the same job.
-    BACKGROUND_LOGGER.info("BackgroundFu: Race condition handled (It's OK). #{job.inspect}.")
+    BACKGROUND_LOGGER.info("BackgroundFu: Race condition handled (It's OK). #{inspect}.")
   end
 
   def schedule
