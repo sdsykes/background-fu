@@ -2,6 +2,9 @@
 
 require File.dirname(__FILE__) + "/../../config/environment"
 
+# view paths need cwd to be set like this (eg used in actionmailer)
+Dir.chdir RAILS_ROOT
+
 Signal.trap("TERM") { exit }
 
 BACKGROUND_LOGGER = BackgroundFu::BACKGROUND_LOGGER
