@@ -1,0 +1,8 @@
+A <%= @exception.class %> occurred in <%= @job.worker_class %>#<%= @job.worker_method %>:
+
+  <%= @exception.message %>
+  <%= @backtrace.join "\n" %>
+
+* Job ID : <%= @job.id %>
+* Process: <%= $$ %>
+* Server : <%= `hostname -s`.chomp %>

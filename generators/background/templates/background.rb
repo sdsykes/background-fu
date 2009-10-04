@@ -21,6 +21,8 @@ Job.cleanup_finished_jobs if BackgroundFu::CONFIG['cleanup_interval'] == :at_sta
 
 Job.update_scheduled_jobs BackgroundFu::CONFIG['schedule']
 
+Job.notify_on_exception = BackgroundFu::CONFIG['notify_on_exception']
+
 loop do
   if job = Job.find(:first, :conditions => ["state='pending' and start_at <= ?", Time.zone ? Time.zone.now.to_s(:db) : Time.now], :order => "priority desc, start_at asc")
     job.get_done!

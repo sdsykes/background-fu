@@ -4,7 +4,7 @@
 
 class Job < ActiveRecord::Base
   BACKGROUND_LOGGER = BackgroundFu::BACKGROUND_LOGGER
-  cattr_accessor :states, :run_methods
+  cattr_accessor :states, :run_methods, :notify_on_exception
   self.states = %w(pending running finished failed)
   self.run_methods = %w(normal thread process)
 
@@ -51,32 +51,45 @@ class Job < ActiveRecord::Base
 
   # Invoked by a background daemon.
   def get_done!
-    last_run_time = started_at
+    @last_run_time = started_at
     initialize_worker
     case run_method
     when "normal"
-      instantiate_and_invoke(last_run_time)
+      instantiate_and_invoke
     when "thread"
-      Thread.new {instantiate_and_invoke(last_run_time)}
+      Thread.new {instantiate_and_invoke}
     when "process"
-      `RAILS_ENV=#{Rails.env} #{RAILS_ROOT + "/script/runner"} 'Job.find_by_id(#{id}).run("#{last_run_time}")'`
+      script = "Job.find_by_id(#{id}).run(\"#{last_run_time}\", #{Job.notify_on_exception})"
+      `RAILS_ENV=#{Rails.env} #{RAILS_ROOT + "/script/runner"} '#{script}'`
     end
   end
 
-  def run(last_run_time_str)
-    last_run_time = Time.parse(last_run_time_str)
-    instantiate_and_invoke(last_run_time)
+  def run(last_run_time_str, notify_on_exception)
+    @last_run_time = Time.parse(last_run_time_str)
+    Job.notify_on_exception = notify_on_exception
+    instantiate_and_invoke
   end
 
-  def instantiate_and_invoke(last_run_time)
+  def instantiate_and_invoke
     @worker = worker_class.constantize.new
-    @worker.instance_variable_set(:@last_run_time, last_run_time)
-    @worker.instance_variable_set(:@logger, BACKGROUND_LOGGER)
+    setup_worker
     invoke_worker
   rescue Exception => e
     rescue_worker(e)
   ensure
     ensure_worker
+  end
+
+  def setup_worker
+    @worker.instance_variable_set(:@last_run_time, @last_run_time)
+    set_worker_iv_if_nil(:@logger, BACKGROUND_LOGGER)
+    set_worker_iv_if_nil(:@notify_on_exception, Job.notify_on_exception)
+  end
+
+  def set_worker_iv_if_nil(name, value)
+    if @worker.instance_variable_get(name).nil?
+      @worker.instance_variable_set(name, value)
+    end
   end
 
   # Restart a failed job.
@@ -111,6 +124,11 @@ class Job < ActiveRecord::Base
     self.result = [exception.message, exception.backtrace.join("\n")].join("\n\n")
     self.state  = "failed"
     BACKGROUND_LOGGER.info("BackgroundFu: Job failed. #{inspect}.")
+    notify_exception(exception) if @worker.instance_variable_get(:@notify_on_exception)
+  end
+
+  def notify_exception(exception)
+    BackgroundFu::ExceptionMailer.deliver_exception_email(exception, self)
   end
 
   def ensure_worker
