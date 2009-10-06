@@ -10,6 +10,7 @@ Signal.trap("TERM") { exit }
 BACKGROUND_LOGGER = BackgroundFu::BACKGROUND_LOGGER
 
 ActiveRecord::Base.logger = BACKGROUND_LOGGER
+ActiveRecord::Base.establish_connection  # to ensure logger is correct for all connections
 
 BACKGROUND_LOGGER.info("BackgroundFu: Starting daemon (bonus features #{Job.included_modules.include?(Job::BonusFeatures) ? "enabled" : "disabled"}).")
 
