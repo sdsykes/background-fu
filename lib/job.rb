@@ -135,10 +135,13 @@ class Job < ActiveRecord::Base
     self.progress = @worker.instance_variable_get("@progress")
     schedule unless crontab.blank? || state == "failed"
     save!
-  rescue StaleObjectError
-    # Ignore this exception as its only purpose is
-    # not allowing multiple daemons execute the same job.
+  rescue ActiveRecord::StaleObjectError=>exception
     BACKGROUND_LOGGER.info("BackgroundFu: Race condition handled (It's OK). #{inspect}.")
+    self.lock_version = Job.find(id).lock_version  # retry, we must save to ensure job is rescheduled
+    retry
+  rescue Exception=>exception
+    # we need to know if rescheduling or saving the job failed in any way
+    notify_exception(exception) if @worker.instance_variable_get(:@notify_on_exception)    
   end
 
   def schedule
