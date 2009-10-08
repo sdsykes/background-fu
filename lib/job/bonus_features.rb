@@ -36,13 +36,18 @@ module Job::BonusFeatures
   # 1. invoke job.stop! to set a state (stopping) in a db
   # 2. Monitoring thread picks up the state change from db
   #    and sets @stopping to true in the worker.
-  # 3. The worker invokes a register_progress() somewhere during execution.
+  # 3. The worker invokes a record_progress() somewhere during execution.
   # 4. The record_progress() method throws :stopping symbol if @stopping == true
   # 5. The job catches the :stopping symbol and reacts upon it.
   # 6. The job is stopped in a merciful way. No one gets harmed.
   def stop!
     if running?
-      update_attribute(:state, "stopping")
+      begin
+        update_attribute(:state, "stopping")
+      rescue ActiveRecord::StaleObjectError=>exception
+        reload
+        retry
+      end
       logger.info("BackgroundFu: Stopping job. Job(id: #{id}).")
     end
   end
@@ -50,12 +55,17 @@ module Job::BonusFeatures
   # Overridden because of new "stopped" state.
   def restart_with_threads!
     if stopped? || failed?
-      update_attributes!(
-        :result     => nil, 
-        :progress   => nil, 
-        :started_at => nil, 
-        :state      => "pending"
-      ) 
+      begin
+        update_attributes!(
+          :result     => nil, 
+          :progress   => nil, 
+          :started_at => nil, 
+          :state      => "pending"
+        )
+      rescue ActiveRecord::StaleObjectError=>exception
+        reload
+        retry
+      end   
       logger.info("BackgroundFu: Restarting job. Job(id: #{id}).")
     end
   end
@@ -70,7 +80,11 @@ module Job::BonusFeatures
         if current_progress == progress
           sleep 5
         else
-          update_attribute(:progress, current_progress)
+          begin
+            update_attribute(:progress, current_progress)
+          rescue ActiveRecord::StaleObjectError=>exception
+            # ignore
+          end
           sleep 1
         end
       end

@@ -52,7 +52,7 @@ class Job < ActiveRecord::Base
   # Invoked by a background daemon.
   def get_done!
     @last_run_time = started_at
-    initialize_worker
+    return unless initialize_worker
     case run_method
     when "normal"
       instantiate_and_invoke
@@ -108,6 +108,10 @@ class Job < ActiveRecord::Base
   def initialize_worker
     update_attributes!(:started_at => Time.now, :state => "running")
     BACKGROUND_LOGGER.info("BackgroundFu: Job initialized. #{inspect}.")
+    true
+  rescue ActiveRecord::StaleObjectError=>exception
+    BACKGROUND_LOGGER.info("BackgroundFu: Race condition in initialize (will try again later). #{inspect}.")
+    false
   end
 
   def invoke_worker
@@ -136,7 +140,7 @@ class Job < ActiveRecord::Base
     schedule unless crontab.blank? || state == "failed"
     save!
   rescue ActiveRecord::StaleObjectError=>exception
-    BACKGROUND_LOGGER.info("BackgroundFu: Race condition handled (It's OK). #{inspect}.")
+    BACKGROUND_LOGGER.info("BackgroundFu: Race condition in ensure worker (retrying). #{inspect}.")
     self.lock_version = Job.find(id).lock_version  # retry, we must save to ensure job is rescheduled
     retry
   rescue Exception=>exception
