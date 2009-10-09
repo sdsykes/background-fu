@@ -5,7 +5,6 @@ module Job::BonusFeatures
     base.generate_state_helpers
 
     base.alias_method_chain :invoke_worker, :threads
-    base.alias_method_chain :ensure_worker, :threads
     base.alias_method_chain :restart!,      :threads
   end
   
@@ -20,11 +19,6 @@ module Job::BonusFeatures
     self.reload
     self.state = res ? "stopped" : "finished"
     self.result = res ? nil : result
-  end
-
-  def ensure_worker_with_threads
-    ensure_worker_without_threads
-    cleanup_after_threads
   end
   
   # The record_progress() method becomes available when your worker class includes
@@ -48,7 +42,7 @@ module Job::BonusFeatures
         reload
         retry
       end
-      logger.info("BackgroundFu: Stopping job. Job(id: #{id}).")
+      logger.info("BackgroundFu: Stopping job. #{inspect}.")
     end
   end
   
@@ -66,7 +60,7 @@ module Job::BonusFeatures
         reload
         retry
       end   
-      logger.info("BackgroundFu: Restarting job. Job(id: #{id}).")
+      logger.info("BackgroundFu: Restarting job. #{inspect}.")
     end
   end
 
@@ -74,32 +68,32 @@ module Job::BonusFeatures
   # is changed to 'stopping', the worker is requested to stop.
   def monitor_worker
     Thread.new do
-      while running? && !Job.find(id).stopping?
-        current_progress = @worker.instance_variable_get("@progress")
+      begin
+        while running? && !Job.find(id).stopping?
+          current_progress = @worker.instance_variable_get("@progress")
 
-        if current_progress == progress
-          sleep 5
-        else
-          begin
-            update_attribute(:progress, current_progress)
-          rescue ActiveRecord::StaleObjectError=>exception
-            # ignore
+          if current_progress == progress
+            sleep 5
+          else
+            begin
+              update_attribute(:progress, current_progress)
+            rescue ActiveRecord::StaleObjectError=>exception
+              # ignore
+            end
+            sleep 1
           end
-          sleep 1
-        end
-      end
 
-      if Job.find(id).stopping?
-        @worker.instance_variable_set("@stopping", true)
+        end
+
+        if Job.find(id).stopping?
+          @worker.instance_variable_set("@stopping", true)
+        end
+      ensure
+        ActiveRecord::Base.clear_active_connections!
       end
     end
-    
-    logger.info("BackgroundFu: Job monitoring started. Job(id: #{id}).")
-  end
 
-  # Closes database connections left after finished threads.
-  def cleanup_after_threads
-    ActiveRecord::Base.verify_active_connections!
+    logger.info("BackgroundFu: Job monitoring started. #{inspect}.")
   end
   
   def elapsed

@@ -146,6 +146,8 @@ class Job < ActiveRecord::Base
   rescue Exception=>exception
     # we need to know if rescheduling or saving the job failed in any way
     notify_exception(exception) if @worker.instance_variable_get(:@notify_on_exception)    
+  ensure
+    ActiveRecord::Base.clear_active_connections! if run_method == "thread"
   end
 
   def schedule
