@@ -52,6 +52,7 @@ h3. Installation
 
 h2. Synopsis
 
+<pre>
   ruby ./script/generate background
   rake db:migrate
   
@@ -65,19 +66,23 @@ h2. Synopsis
   # after few seconds when background daemon completes the job
 
   Job.find(job_id).result # result of the job should equal 3
+</pre>  
+
+If you want to use default generated views, update your config/routes.rb:
   
-  If you want to use default generated views, update your config/routes.rb:
-  
+<pre>
   map.namespace "admin" do |admin|
     admin.resources :jobs
   end
-  
-  Then you can point your browser to http://localhost:3000/admin/jobs
+</pre>
+
+Then you can point your browser to http://localhost:3000/admin/jobs
 
 h2. Example code - workers
 
 Worker classes go in lib/workers.  They are just plain ruby classes that will be instantiated and have methods called on them by the background runner.
 
+<pre>
   # lib/workers/example_worker.rb
 
   # Simple, non-monitored worker.
@@ -86,13 +91,17 @@ Worker classes go in lib/workers.  They are just plain ruby classes that will be
       a + b
     end
   end
-  
+</pre>
+
 Run this worker like this:
 
+<pre>
   Job.enqueue!(ExampleWorker, :add, 1, 2)
+</pre>
 
 Workers can record their progress, and this can be monitored by your application by reading from the database.
 
+<pre>
   # lib/workers/example_monitored_worker.rb:
 
   # Remember to include BackgroundFu::WorkerMonitoring.
@@ -113,14 +122,17 @@ Workers can record their progress, and this can be monitored by your application
       record_progress(100)
     end
   end
+</pre>
   
 Note that Job is just a regular ActiveRecord model.  Run this worker like this:
 
+<pre>
   job = Job.enqueue!(ExampleMonitoredWorker, :long_and_monitored)
   while job.reload.progress.to_i < 100
     puts "Progress: #{job.progress}"
     sleep 2
   end
+</pre>
 
 h2. Special instance variables
 
@@ -136,9 +148,10 @@ h3. @logger
 
 This is the Logger object that is used by BackgroundFu to write to its log.  You can send logging information there also by using this instance variable.
 
+<pre>
   @logger.info "My worker did something interesting"
+</pre>
 
 
 
-
-# more documentation coming
+h2. more documentation coming soon
