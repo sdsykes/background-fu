@@ -60,7 +60,11 @@ class Job < ActiveRecord::Base
       Thread.new {instantiate_and_invoke}
     when "process"
       script = "Job.find_by_id(#{id}).run(\"#{@last_run_time}\", #{Job.notify_on_exception})"
-      `RAILS_ENV=#{Rails.env} #{RAILS_ROOT + "/script/runner"} '#{script}' &`
+      pid = fork do
+        %x{RAILS_ENV=#{Rails.env} #{RAILS_ROOT + "/script/runner"} '#{script}'}
+        exit!
+      end
+      Process.detach pid
     end
   end
 
