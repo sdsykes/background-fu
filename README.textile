@@ -134,7 +134,7 @@ Note that Job is just a regular ActiveRecord model.  Run this worker like this:
   end
 </pre>
 
-h2. Special instance variables
+h2. Special instance variables in your workers
 
 h3. @progress
 
@@ -152,6 +152,57 @@ This is the Logger object that is used by BackgroundFu to write to its log.  You
   @logger.info "My worker did something interesting"
 </pre>
 
+h2. Scheduling jobs
 
+Jobs schedules are kept along with other configuration information in config/daemons.yml.
+
+Here is a sample file including a job schedule:
+
+<pre>
+  dir_mode: script
+  dir: ../../log
+  multiple: false
+  backtrace: true
+  monitor: true
+  background_fu:
+    cleanup_interval: :on_startup # :on_startup or :continuous
+    monitor_interval: 15          # seconds between checks for queued jobs
+    notify_on_exception: true
+    schedule:
+      backup_worker:
+        backup: 0 4 1 * * * process
+        remove_old_files: 0 10 2 * * * process
+      regular_job_worker:
+        check_for_new_files: 0 */15 * * * * thread
+</pre>
+
+The options at the start of the file are general options for daemons started by the daemons gem.  Unless you use it for something else, this will only be background-fu.  Of note is the multiple setting, which allows you to run multiple background-fu daemons simultaneously if you wish (not usually needed though due to process option).
+
+In the background_fu section there are is a schedule setting, which takes a section for each worker class you wish to run scheduled jobs in.
+
+The schedule format is the same as for crontab, except for the addition of a seconds field at the start, and a normal, thread or process specifier at the end.
+
+This schedule tells background-fu to run the method backup in the class BackupWorker at 01:04:00 every day, and to run it in a separate process.
+
+<pre>
+  backup_worker:
+    backup: 0 4 1 * * * process
+</pre>
+
+This scheedule tells background-fu to run the check_for_new_files method in the class RegularJobWorker every 15 minutes:
+
+<pre>
+  regular_job_worker:
+    check_for_new_files: 0 */15 * * * * thread
+</pre>
+
+For reference, the format is:
+
+<pre>
+  some_worker:
+    some_method: secs(0-59) mins(0-59) hours(0-23) day-of-month(1-31) month(1-12) day-of-week(0-6) normal|thread|process
+</pre>
+
+Any field can be *, meaning every value, or be */n where n is the interval to leave between each run. Day of week 0 is Sunday.
 
 h2. more documentation coming soon
