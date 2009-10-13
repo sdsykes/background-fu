@@ -196,12 +196,12 @@ class Job < ActiveRecord::Base
         seen_ids << js.id
       end
     end
-    remove_jobs_not_in_list(seen_ids)
+    unschedule_jobs_not_in_list(seen_ids)
   end
 
-  def self.remove_jobs_not_in_list(id_list)
-    jobs = find(:all, :conditions=>"crontab IS NOT NULL")
-    jobs.each {|j| j.destroy unless id_list.include?(j.id)}
+  def self.unschedule_jobs_not_in_list(id_list)
+    jobs = find(:all, :conditions=>["crontab IS NOT NULL AND state=?", "pending"])
+    jobs.each {|j| j.update_attribute(:state, "finished") unless id_list.include?(j.id)}
   end
 
   def self.generate_state_helpers
