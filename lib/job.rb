@@ -55,6 +55,7 @@ class Job < ActiveRecord::Base
     return unless initialize_worker
     case run_method
     when "normal"
+      checkin_connections
       instantiate_and_invoke
     when "thread"
       Thread.new {instantiate_and_invoke}
@@ -68,10 +69,16 @@ class Job < ActiveRecord::Base
     end
   end
 
+  # called by script/runner
   def run(last_run_time_str, notify_on_exception)
     @last_run_time = Time.parse(last_run_time_str)
     Job.notify_on_exception = notify_on_exception
     instantiate_and_invoke
+  end
+
+  # do not use verify_active_connections! - it's not thread safe
+  def checkin_connections
+    ActiveRecord::Base.clear_active_connections!
   end
 
   def instantiate_and_invoke
@@ -151,7 +158,7 @@ class Job < ActiveRecord::Base
     # we need to know if rescheduling or saving the job failed in any way
     notify_exception(exception) if @worker.instance_variable_get(:@notify_on_exception)    
   ensure
-    ActiveRecord::Base.clear_active_connections! if run_method == "thread"
+    checkin_connections if run_method == "thread"
   end
 
   def schedule

@@ -36,7 +36,7 @@ h2. BackgroundFu standard features
 * Easy to deploy in distributed environments.
 * Enables prioritizing and simple scheduling.
 * Optional worker monitoring (good for AJAX progress bars).
-* Proven its stability and reliability in production use.
+* Proven stability and reliability in production use.
 
 h2. Start here
 
@@ -189,7 +189,7 @@ This schedule tells background-fu to run the method backup in the class BackupWo
     backup: 0 4 1 * * * process
 </pre>
 
-This scheedule tells background-fu to run the check_for_new_files method in the class RegularJobWorker every 15 minutes:
+This schedule tells background-fu to run the check_for_new_files method in the class RegularJobWorker every 15 minutes:
 
 <pre>
   regular_job_worker:

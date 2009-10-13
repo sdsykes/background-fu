@@ -89,7 +89,7 @@ module Job::BonusFeatures
           @worker.instance_variable_set("@stopping", true)
         end
       ensure
-        ActiveRecord::Base.clear_active_connections!
+        checkin_connections
       end
     end
 
